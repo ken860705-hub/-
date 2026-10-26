@@ -26,10 +26,11 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
 
-  // Subtitle Settings
+  // Advanced Medical Subtitle Settings
   const [subtitleSettings, setSubtitleSettings] = useState<SubtitleSettings>({
     targetLanguage: 'zh-TW', // 繁體中文 default
     sourceLanguage: 'auto',
+    specialty: 'surgery', // default surgical procedure
     bilingualMode: true,
     fontSize: 'lg',
     fontColor: 'yellow',
@@ -37,6 +38,8 @@ export default function App() {
     position: 'bottom-dock', // default pinned at bottom
     autoTTS: false,
     showVocabHints: true,
+    highlightMedicalEntities: true,
+    showMedicalConfidence: true,
     highContrastBorder: true,
   });
 
@@ -62,9 +65,12 @@ export default function App() {
   useEffect(() => {
     setCues(currentVideo.defaultCues || []);
     setCurrentTime(0);
+    if (currentVideo.specialty) {
+      setSubtitleSettings((prev) => ({ ...prev, specialty: currentVideo.specialty }));
+    }
   }, [currentVideo.id]);
 
-  // Translate cues on target language change if not yet translated
+  // Translate cues on target language or specialty change if not yet translated
   useEffect(() => {
     const target = subtitleSettings.targetLanguage;
     const untranslated = cues.filter((c) => !c.translations[target]);
@@ -73,7 +79,7 @@ export default function App() {
       setIsTranslating(true);
       const items = untranslated.map((c) => ({ id: c.id, text: c.originalText }));
 
-      batchTranslateSubtitles(items, target)
+      batchTranslateSubtitles(items, target, subtitleSettings.specialty)
         .then((translatedMap) => {
           setCues((prev) =>
             prev.map((c) => {
@@ -93,7 +99,7 @@ export default function App() {
         .catch(console.error)
         .finally(() => setIsTranslating(false));
     }
-  }, [subtitleSettings.targetLanguage, cues.length]);
+  }, [subtitleSettings.targetLanguage, subtitleSettings.specialty, cues.length]);
 
   // Determine current active subtitle cue
   const activeVideoCue = useMemo(() => {
@@ -119,7 +125,7 @@ export default function App() {
     if (!activeVideoCue.translations[target] && lastTranslatedCueIdRef.current !== activeVideoCue.id) {
       lastTranslatedCueIdRef.current = activeVideoCue.id;
       setIsTranslating(true);
-      translateSubtitle(activeVideoCue.originalText, target)
+      translateSubtitle(activeVideoCue.originalText, target, 'Auto', subtitleSettings.specialty)
         .then((translated) => {
           setCues((prev) =>
             prev.map((c) =>
@@ -137,20 +143,21 @@ export default function App() {
         })
         .finally(() => setIsTranslating(false));
     }
-  }, [activeVideoCue?.id, subtitleSettings.targetLanguage]);
+  }, [activeVideoCue?.id, subtitleSettings.targetLanguage, subtitleSettings.specialty]);
 
   // Handle navigate URL from address bar
   const handleNavigateUrl = (url: string) => {
     const isDirect = url.includes('.mp4') || url.includes('.webm') || url.includes('.m3u8');
     const newVideo: VideoItem = {
       id: `nav-${Date.now()}`,
-      title: isDirect ? url.split('/').pop() || '網路影片串流' : '網路串流影片',
-      category: '網路影音',
+      title: isDirect ? url.split('/').pop() || '臨床手術/醫學串流' : '線上醫學串流',
+      category: '醫學線上串流',
+      specialty: subtitleSettings.specialty,
       originalLanguage: 'auto',
       videoUrl: url,
       duration: 0,
-      thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=800&q=80',
-      description: `正在播放串流網址: ${url}`,
+      thumbnail: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=800&q=80',
+      description: `串流網址: ${url}`,
       defaultCues: [],
       isCustomUrl: true,
     };
@@ -158,7 +165,7 @@ export default function App() {
     setActiveTab('video');
   };
 
-  // Handle word click in subtitle
+  // Handle word click in subtitle to open MeSH medical dictionary
   const handleWordClick = (word: string, contextSentence: string) => {
     setVocabModal({
       isOpen: true,
@@ -175,7 +182,7 @@ export default function App() {
 
   return (
     <DeviceContainer deviceMode={deviceMode} onDeviceModeChange={setDeviceMode}>
-      {/* Browser Navbar & Omnibox */}
+      {/* Medical Browser Navbar & Omnibox */}
       <BrowserNavbar
         currentUrl={currentVideo.videoUrl}
         onNavigateUrl={handleNavigateUrl}
@@ -198,7 +205,7 @@ export default function App() {
 
       {/* Main View Area */}
       <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden bg-slate-950">
-        {/* TAB 1: Main Video Player & Bottom Subtitle Dock */}
+        {/* TAB 1: Main Medical Video Player & Bottom Subtitle Dock */}
         {activeTab === 'video' && (
           <div className="flex-1 flex flex-col justify-between overflow-hidden">
             <div className="flex-1 flex items-center justify-center relative min-h-0 bg-black">
@@ -229,7 +236,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: Curated World Video Library */}
+        {/* TAB 2: Curated World Advanced Medical Library */}
         {activeTab === 'library' && (
           <VideoLibraryView
             onSelectVideo={(video) => {
@@ -241,7 +248,7 @@ export default function App() {
           />
         )}
 
-        {/* TAB 3: Local Video Upload & Custom Stream */}
+        {/* TAB 3: Local Surgical Footage / Case Upload */}
         {activeTab === 'upload' && (
           <LocalVideoUploadView
             onLoadCustomVideo={(video) => {
@@ -251,7 +258,7 @@ export default function App() {
           />
         )}
 
-        {/* TAB 4: Live Speech-To-Text Audio Translator */}
+        {/* TAB 4: Live Clinical Rounds & OSCE Audio Translator */}
         {activeTab === 'live-mic' && (
           <LiveMicView
             subtitleSettings={subtitleSettings}
@@ -262,7 +269,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Subtitle Settings Modal */}
+      {/* Subtitle & Specialty Settings Modal */}
       <SubtitleSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -270,7 +277,7 @@ export default function App() {
         onUpdateSettings={(newVals) => setSubtitleSettings((prev) => ({ ...prev, ...newVals }))}
       />
 
-      {/* Transcript & AI Notes Drawer */}
+      {/* Clinical Transcript & SOAP Notes Drawer */}
       <TranscriptDrawer
         isOpen={isTranscriptOpen}
         onClose={() => setIsTranscriptOpen(false)}
@@ -284,7 +291,7 @@ export default function App() {
         videoTitle={currentVideo.title}
       />
 
-      {/* Interactive Vocabulary Modal */}
+      {/* MeSH Medical Dictionary & Clinical Precautions Modal */}
       <VocabModal
         isOpen={vocabModal.isOpen}
         onClose={() => setVocabModal((prev) => ({ ...prev, isOpen: false }))}

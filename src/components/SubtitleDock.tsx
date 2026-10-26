@@ -1,7 +1,18 @@
 import React, { useState } from 'react';
-import { Volume2, Copy, Check, Sparkles, Globe, Settings2, Sliders } from 'lucide-react';
-import { SubtitleCue, SubtitleSettings } from '../types';
+import {
+  Volume2,
+  Copy,
+  Check,
+  Sparkles,
+  Globe,
+  Sliders,
+  ShieldCheck,
+  Stethoscope,
+  BookOpen,
+} from 'lucide-react';
+import { SubtitleCue, SubtitleSettings, MedicalEntity } from '../types';
 import { SUPPORTED_LANGUAGES } from '../constants/languages';
+import { MEDICAL_SPECIALTIES } from '../constants/medicalSpecialties';
 
 interface SubtitleDockProps {
   currentCue: SubtitleCue | null;
@@ -21,9 +32,14 @@ export const SubtitleDock: React.FC<SubtitleDockProps> = ({
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  const targetLang = SUPPORTED_LANGUAGES.find((l) => l.code === subtitleSettings.targetLanguage) || SUPPORTED_LANGUAGES[0];
+  const targetLang =
+    SUPPORTED_LANGUAGES.find((l) => l.code === subtitleSettings.targetLanguage) || SUPPORTED_LANGUAGES[0];
 
-  const translatedText = currentCue?.translations?.[subtitleSettings.targetLanguage] ||
+  const currentSpecialty =
+    MEDICAL_SPECIALTIES.find((s) => s.id === subtitleSettings.specialty) || MEDICAL_SPECIALTIES[0];
+
+  const translatedText =
+    currentCue?.translations?.[subtitleSettings.targetLanguage] ||
     (currentCue ? currentCue.translations['zh-TW'] || currentCue.originalText : '');
 
   const originalText = currentCue?.originalText || '';
@@ -32,7 +48,7 @@ export const SubtitleDock: React.FC<SubtitleDockProps> = ({
   const handleCopy = () => {
     if (!translatedText) return;
     const fullText = subtitleSettings.bilingualMode
-      ? `${originalText}\n${translatedText}`
+      ? `[Original] ${originalText}\n[Translated - ${targetLang.nativeName}] ${translatedText}`
       : translatedText;
     navigator.clipboard.writeText(fullText);
     setCopied(true);
@@ -46,8 +62,7 @@ export const SubtitleDock: React.FC<SubtitleDockProps> = ({
 
     const utterance = new SpeechSynthesisUtterance(translatedText);
     utterance.lang = targetLang.speechCode;
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
+    utterance.rate = 0.95; // slightly deliberate for medical clarity
 
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
@@ -75,8 +90,18 @@ export const SubtitleDock: React.FC<SubtitleDockProps> = ({
 
   // Opacity
   const bgStyle = {
-    backgroundColor: `rgba(15, 23, 42, ${subtitleSettings.bgOpacity / 100})`,
-    backdropFilter: subtitleSettings.bgOpacity > 20 ? 'blur(12px)' : 'none',
+    backgroundColor: `rgba(10, 15, 29, ${subtitleSettings.bgOpacity / 100})`,
+    backdropFilter: subtitleSettings.bgOpacity > 20 ? 'blur(16px)' : 'none',
+  };
+
+  // Helper to color medical entities in text
+  const entityCategoryBadges: Record<string, { label: string; bg: string; text: string; border: string }> = {
+    anatomy: { label: '解剖', bg: 'bg-blue-500/15', text: 'text-blue-300', border: 'border-blue-500/30' },
+    procedure: { label: '術式', bg: 'bg-purple-500/15', text: 'text-purple-300', border: 'border-purple-500/30' },
+    pathology: { label: '病理', bg: 'bg-rose-500/15', text: 'text-rose-300', border: 'border-rose-500/30' },
+    drug: { label: '藥理', bg: 'bg-emerald-500/15', text: 'text-emerald-300', border: 'border-emerald-500/30' },
+    imaging: { label: '影像', bg: 'bg-amber-500/15', text: 'text-amber-300', border: 'border-amber-500/30' },
+    lab: { label: '檢驗', bg: 'bg-teal-500/15', text: 'text-teal-300', border: 'border-teal-500/30' },
   };
 
   // Split words for interactive click
@@ -86,29 +111,42 @@ export const SubtitleDock: React.FC<SubtitleDockProps> = ({
     <div
       className={`w-full transition-all duration-300 ${
         subtitleSettings.position === 'bottom-dock'
-          ? 'border-t border-slate-800/80 bg-slate-950/95 py-3 px-4 shadow-2xl relative z-20'
-          : 'absolute bottom-12 left-0 right-0 px-4 pointer-events-auto z-30'
+          ? 'border-t border-slate-800/90 bg-slate-950/95 py-3 px-3 sm:px-5 shadow-2xl relative z-20'
+          : 'absolute bottom-10 left-0 right-0 px-3 sm:px-6 pointer-events-auto z-30'
       }`}
     >
       <div
         style={bgStyle}
-        className={`max-w-4xl mx-auto rounded-2xl p-3 sm:p-4 border transition-all ${
+        className={`max-w-5xl mx-auto rounded-2xl p-3 sm:p-4 border transition-all ${
           subtitleSettings.highContrastBorder
-            ? 'border-blue-500/50 shadow-[0_0_20px_rgba(37,99,235,0.25)]'
-            : 'border-slate-800/60 shadow-lg'
+            ? 'border-cyan-500/40 shadow-[0_0_25px_rgba(6,182,212,0.2)]'
+            : 'border-slate-800/80 shadow-xl'
         }`}
       >
-        {/* Top dock meta bar */}
-        <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5 pb-1 border-b border-white/5">
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 font-medium text-blue-400">
-              <Globe className="w-3.5 h-3.5" />
-              <span>{targetLang.flag} {targetLang.nativeName} 自動翻譯</span>
+        {/* Top dock meta bar: Medical Specialty & MeSH Verification */}
+        <div className="flex items-center justify-between text-xs text-slate-400 mb-2 pb-1.5 border-b border-white/5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="flex items-center gap-1 font-semibold text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded-lg border border-cyan-800/40">
+              <Stethoscope className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{currentSpecialty.icon} {currentSpecialty.name}</span>
             </span>
+
+            {subtitleSettings.showMedicalConfidence && (
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-800/40">
+                <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                <span>MeSH / ICD-10 醫學級翻譯認證</span>
+              </span>
+            )}
+
+            <span className="flex items-center gap-1 font-medium text-slate-300">
+              <Globe className="w-3 h-3 text-blue-400" />
+              <span>{targetLang.flag} {targetLang.nativeName}</span>
+            </span>
+
             {isTranslating && (
-              <span className="flex items-center gap-1 text-[11px] text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full animate-pulse">
+              <span className="flex items-center gap-1 text-[11px] text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full animate-pulse border border-amber-400/20">
                 <Sparkles className="w-3 h-3" />
-                AI 即時生成中...
+                Gemini 臨床翻譯處理中...
               </span>
             )}
           </div>
@@ -119,9 +157,9 @@ export const SubtitleDock: React.FC<SubtitleDockProps> = ({
               onClick={handleSpeak}
               disabled={!translatedText}
               className={`p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors disabled:opacity-40 ${
-                isSpeaking ? 'text-blue-400 bg-blue-500/20' : ''
+                isSpeaking ? 'text-cyan-400 bg-cyan-500/20' : ''
               }`}
-              title="朗讀翻譯字幕 (TTS)"
+              title="朗讀醫學翻譯字幕 (TTS 語音發音)"
             >
               <Volume2 className="w-3.5 h-3.5" />
             </button>
@@ -131,7 +169,7 @@ export const SubtitleDock: React.FC<SubtitleDockProps> = ({
               onClick={handleCopy}
               disabled={!translatedText}
               className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors disabled:opacity-40"
-              title="複製字幕文字"
+              title="複製醫學字幕文字"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
@@ -140,7 +178,7 @@ export const SubtitleDock: React.FC<SubtitleDockProps> = ({
             <button
               onClick={onOpenSettings}
               className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors"
-              title="調整字幕樣式"
+              title="調整醫學字幕設定與專科模式"
             >
               <Sliders className="w-3.5 h-3.5" />
             </button>
@@ -149,22 +187,43 @@ export const SubtitleDock: React.FC<SubtitleDockProps> = ({
 
         {/* Subtitle Text Content */}
         {currentCue ? (
-          <div className="text-center space-y-1 sm:space-y-1.5">
-            {/* Original Subtitle (Bilingual mode) */}
+          <div className="text-center space-y-1 sm:space-y-2">
+            {/* Original Spoken Text (Bilingual Mode) */}
             {subtitleSettings.bilingualMode && originalText && (
-              <div className={`${fontSizes.orig} text-slate-300 font-medium tracking-wide flex flex-wrap items-center justify-center gap-x-1`}>
+              <div
+                className={`${fontSizes.orig} text-slate-300 font-medium tracking-wide flex flex-wrap items-center justify-center gap-x-1 leading-relaxed`}
+              >
                 {subtitleSettings.showVocabHints ? (
                   words.map((chunk, idx) => {
-                    const cleanWord = chunk.replace(/^[^\w\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]+|[^\w\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]+$/g, '');
+                    const cleanWord = chunk.replace(
+                      /^[^\w\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]+|[^\w\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]+$/g,
+                      ''
+                    );
                     if (!cleanWord || /^\s+$/.test(chunk)) {
                       return <span key={idx}>{chunk}</span>;
                     }
+
+                    // Check if this word matches any medical entity
+                    const matchedEntity = currentCue.medicalEntities?.find((e) =>
+                      e.term.toLowerCase().includes(cleanWord.toLowerCase())
+                    );
+
+                    const badgeStyle = matchedEntity ? entityCategoryBadges[matchedEntity.category] : null;
+
                     return (
                       <span
                         key={idx}
-                        onClick={() => onWordClick(cleanWord, originalText)}
-                        className="cursor-pointer hover:text-blue-400 hover:underline decoration-blue-400/60 transition-colors rounded px-0.5"
-                        title={`點擊查詢 "${cleanWord}" 的單字語法解釋`}
+                        onClick={() => onWordClick(matchedEntity ? matchedEntity.term : cleanWord, originalText)}
+                        className={`cursor-pointer transition-all rounded px-1 py-0.5 ${
+                          badgeStyle
+                            ? `${badgeStyle.bg} ${badgeStyle.text} border ${badgeStyle.border} font-semibold hover:scale-105`
+                            : 'hover:text-cyan-300 hover:underline decoration-cyan-400/60'
+                        }`}
+                        title={
+                          matchedEntity
+                            ? `[${badgeStyle?.label}] 點擊查詢 MeSH/ICD 醫學辭典: "${matchedEntity.term}"`
+                            : `點擊查詢醫學術語: "${cleanWord}"`
+                        }
                       >
                         {chunk}
                       </span>
@@ -176,24 +235,43 @@ export const SubtitleDock: React.FC<SubtitleDockProps> = ({
               </div>
             )}
 
-            {/* Translated Subtitle */}
-            <div className={`${fontSizes.trans} ${colorClasses} tracking-wider transition-all duration-200`}>
-              {translatedText || (
-                <span className="italic opacity-60">翻譯準備中...</span>
-              )}
+            {/* Translated Medical Subtitle */}
+            <div className={`${fontSizes.trans} ${colorClasses} tracking-wider transition-all duration-200 leading-snug`}>
+              {translatedText || <span className="italic opacity-60">醫學即時翻譯生成中...</span>}
             </div>
+
+            {/* Medical Entities Quick Badge Strip */}
+            {subtitleSettings.highlightMedicalEntities && currentCue.medicalEntities && currentCue.medicalEntities.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                <span className="text-[10px] text-slate-500 font-medium">關鍵醫學實體：</span>
+                {currentCue.medicalEntities.map((ent, idx) => {
+                  const badge = entityCategoryBadges[ent.category] || entityCategoryBadges.anatomy;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => onWordClick(ent.term, originalText)}
+                      className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border ${badge.bg} ${badge.border} ${badge.text} hover:opacity-80 transition-opacity`}
+                    >
+                      <span className="font-bold text-[9px] uppercase tracking-wider">[{badge.label}]</span>
+                      <span className="font-medium">{ent.term}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="text-center py-2 text-xs sm:text-sm text-slate-500 flex items-center justify-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-blue-500/60 animate-ping"></span>
-            <span>正在同步監聽影片音訊與時間軸... 自動翻譯字幕將顯示於此</span>
+          <div className="text-center py-2.5 text-xs sm:text-sm text-slate-500 flex items-center justify-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+            <span>正在同步監聽臨床手術音訊與時間軸... 醫學專科翻譯字幕將自動顯示於此</span>
           </div>
         )}
 
-        {/* Word click hint footer */}
+        {/* Clinical Note Footer */}
         {subtitleSettings.bilingualMode && subtitleSettings.showVocabHints && currentCue && (
-          <div className="text-[10px] text-slate-500 text-center mt-1.5 hidden sm:block">
-            💡 提示：點擊上方原文中的任何單字，即可使用 Gemini AI 查詢詳細釋義與文法例句
+          <div className="text-[10px] text-slate-500 text-center mt-1.5 hidden sm:flex items-center justify-center gap-2">
+            <BookOpen className="w-3 h-3 text-cyan-400" />
+            <span>點擊上方任意解剖、病理或藥物名詞，即可查詢 MeSH 臨床定義、適應症與 PubMed 論文索引</span>
           </div>
         )}
       </div>

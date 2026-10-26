@@ -1,6 +1,6 @@
 {
-  "name": "OmniTrans Browser - 影音即時多語翻譯瀏覽器",
-  "description": "跨平台智能影音翻譯瀏覽器，支援電腦、平板與手機。播放任何網路影片或本機檔案時，於畫面下方即時自動識別語音並翻譯各國語言字幕，提供雙語對照、語音朗讀與逐字稿學習功能。",
+  "name": "OmniTrans Medical - 進階醫療專業影音翻譯瀏覽器",
+  "description": "專為外科手術、臨床病例研討、醫學會演講與跨國醫病問診打造的進階醫療多語翻譯瀏覽器。支援電腦、平板與手機，於畫面下方自動呈現醫學級精準雙語字幕、即時標註解剖與藥理名詞、提供 MeSH/ICD 醫學辭典查詢與 SOAP 臨床筆記生成。",
   "requestFramePermissions": [
     "camera",
     "microphone",

@@ -1,9 +1,10 @@
-import { VocabAnalysis, VideoSummary } from '../types';
+import { MedicalTermAnalysis, ClinicalSoapReport, MedicalSpecialty } from '../types';
 
 export async function translateSubtitle(
   text: string,
   targetLangName: string,
-  sourceLangName: string = 'Auto'
+  sourceLangName: string = 'Auto',
+  specialty: MedicalSpecialty = 'general'
 ): Promise<string> {
   try {
     const res = await fetch('/api/translate', {
@@ -13,11 +14,12 @@ export async function translateSubtitle(
         text,
         sourceLang: sourceLangName,
         targetLang: targetLangName,
+        specialty,
       }),
     });
 
     if (!res.ok) {
-      throw new Error(`Translation API error: ${res.statusText}`);
+      throw new Error(`Medical translation API error: ${res.statusText}`);
     }
 
     const data = await res.json();
@@ -30,7 +32,8 @@ export async function translateSubtitle(
 
 export async function batchTranslateSubtitles(
   items: Array<{ id: string; text: string }>,
-  targetLangName: string
+  targetLangName: string,
+  specialty: MedicalSpecialty = 'general'
 ): Promise<Record<string, string>> {
   try {
     const res = await fetch('/api/translate-batch', {
@@ -39,6 +42,7 @@ export async function batchTranslateSubtitles(
       body: JSON.stringify({
         items,
         targetLang: targetLangName,
+        specialty,
       }),
     });
 
@@ -55,50 +59,54 @@ export async function batchTranslateSubtitles(
     }
     return map;
   } catch (err) {
-    console.error('Batch translation failure:', err);
+    console.error('Batch medical translation failure:', err);
     return {};
   }
 }
 
-export async function explainVocabulary(
+export async function explainMedicalTerm(
   term: string,
   sentence: string,
-  targetLangName: string
-): Promise<VocabAnalysis> {
-  const res = await fetch('/api/explain-vocab', {
+  targetLangName: string,
+  specialty: MedicalSpecialty = 'general'
+): Promise<MedicalTermAnalysis> {
+  const res = await fetch('/api/explain-medical-term', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       term,
       sentence,
       targetLang: targetLangName,
+      specialty,
     }),
   });
 
   if (!res.ok) {
-    throw new Error('Vocabulary lookup failed');
+    throw new Error('Medical term analysis failed');
   }
 
   return await res.json();
 }
 
-export async function summarizeTranscript(
+export async function generateClinicalSoapReport(
   transcript: string,
   targetLangName: string,
-  videoTitle: string
-): Promise<VideoSummary> {
-  const res = await fetch('/api/summarize-transcript', {
+  videoTitle: string,
+  specialty: MedicalSpecialty = 'surgery'
+): Promise<ClinicalSoapReport> {
+  const res = await fetch('/api/generate-soap-notes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       transcript,
       targetLang: targetLangName,
       videoTitle,
+      specialty,
     }),
   });
 
   if (!res.ok) {
-    throw new Error('Summary generation failed');
+    throw new Error('Clinical SOAP report generation failed');
   }
 
   return await res.json();
